@@ -69,6 +69,13 @@ go build -o ./bin/unity-ai-cli ./cmd/unity-ai-cli
 
 ## Usage
 
+Recommended human flow:
+
+1. `help` to see only the Unity tools that are currently enabled
+2. `help <tool>` to understand one tool
+3. `recipes` to see task-oriented workflows
+4. `call <tool>` to execute the tool directly
+
 Show the currently resolved bridge and companion snapshot state:
 
 ```sh
@@ -93,7 +100,7 @@ List available Unity tools from the live direct bridge:
 ./bin/unity-ai-cli tools --json
 ```
 
-List human-oriented help for the currently enabled Unity tools:
+List human-oriented help for the currently enabled Unity tools only:
 
 ```sh
 ./bin/unity-ai-cli help --json
@@ -109,6 +116,18 @@ Show recipes that are currently available for the enabled Unity tools:
 
 ```sh
 ./bin/unity-ai-cli recipes --json
+```
+
+Show one task-oriented recipe:
+
+```sh
+./bin/unity-ai-cli recipes inspect-console --json
+```
+
+Filter tools by catalog category:
+
+```sh
+./bin/unity-ai-cli tools --category capture
 ```
 
 Describe one Unity tool:
@@ -129,6 +148,9 @@ Expose Unity tools as an MCP stdio server:
 ./bin/unity-ai-cli mcp serve
 ```
 
+`help` and `recipes` are driven by the current live enabled tool set from Unity.
+If a tool is disabled in `Project Settings > AI > Unity MCP`, it will not appear there.
+
 ## Approval Flow
 
 The first direct connection may stay pending until Unity approves the CLI.
@@ -140,6 +162,32 @@ If `doctor`, `tools`, `describe`, `call`, or `mcp serve` reports an approval-rel
 3. Approve the `unity-ai-cli` client
 
 This approval is handled from the Unity settings UI, not a modal dialog.
+
+## Verification
+
+Build the CLI:
+
+```sh
+go build -o ./bin/unity-ai-cli ./cmd/unity-ai-cli
+```
+
+Check the enabled tool catalog:
+
+```sh
+./bin/unity-ai-cli help --json
+./bin/unity-ai-cli help Unity_GetConsoleLogs --json
+./bin/unity-ai-cli recipes --json
+./bin/unity-ai-cli recipes inspect-console --json
+./bin/unity-ai-cli tools --category capture
+```
+
+Expected results:
+
+- `help --json` lists only the tools that are currently enabled in Unity
+- `help Unity_GetConsoleLogs --json` includes summary, usage guidance, arguments, and examples
+- `recipes --json` lists only recipes whose required tools are currently enabled
+- `recipes inspect-console --json` shows the console inspection workflow
+- `tools --category capture` shows only capture tools
 
 ## Development
 

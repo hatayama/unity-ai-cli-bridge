@@ -22,3 +22,8 @@
 
 - Any plan that assumes direct modification of Unity-managed `com.unity.ai.assistant` internals is invalid for this repository.
 - Changes in this repository must remain reproducible from tracked files only.
+
+## Writing Language
+
+- Code comments must be written in English.
+- Commit messages must be written in English.

@@ -16,6 +16,13 @@ V1 must not depend on editing `Library/PackageCache` or any Unity-managed packag
 
 The CLI remains the primary runtime surface.
 
+The intended human flow is:
+
+1. `help` to discover currently enabled tools
+2. `help <tool>` to understand one tool
+3. `recipes` to discover currently available workflows
+4. `call <tool>` to execute a tool directly
+
 Required commands:
 
 - `unity-ai-cli status`
@@ -105,6 +112,7 @@ Provide human-oriented help for the currently enabled Unity tools.
 
 Requirements:
 
+- the live Unity direct bridge is the source of truth for which tools appear
 - `help` without arguments lists only the tools returned by the live Unity direct bridge
 - `help <tool>` succeeds only when the tool is currently enabled and exposed
 - support `--json`
@@ -117,6 +125,7 @@ Provide task-oriented recipes for the currently enabled Unity tools.
 
 Requirements:
 
+- recipe availability is determined from the current live enabled tool set
 - `recipes` lists only recipes whose required tools are all currently enabled
 - `recipes <recipe-id>` fails when the recipe is unknown or currently unavailable
 - support `--json`
@@ -252,6 +261,7 @@ V1 does not require continuous polling.
 - `doctor` provides actionable output for approval and readiness issues
 - `help` lists only currently enabled tools and explains one tool in human-oriented terms
 - `recipes` lists only currently available workflows based on the enabled tool set
+- disabling a tool in Unity removes it from both `help` and any dependent `recipes`
 - `tools`, `describe`, and `call` execute through the live Unity direct bridge
 - `wait` supports heartbeat-based and snapshot-based readiness checks
 - `mcp serve` exposes Unity tools through MCP stdio
