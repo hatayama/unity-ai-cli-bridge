@@ -4,7 +4,7 @@ Experimental Go CLI for calling Unity's built-in MCP tools over the direct Unity
 
 ## Overview
 
-Unity's `com.unity.ai.assistant` package already exposes MCP tools inside the Editor. This repository adds a CLI that talks to the Unity bridge directly over IPC, without going through the Unity relay binary.
+Unity's `com.unity.ai.assistant` package already exposes MCP tools inside the Editor. This repository adds a CLI that connects straight to `UnityMCPBridge` over IPC and does not connect to the Unity relay binary.
 
 Current goals:
 
@@ -32,6 +32,8 @@ Unity Editor
         |
         v
 McpToolRegistry
+
+The relay binary is not part of this runtime path.
 ```
 
 ## Status
