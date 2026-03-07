@@ -1,0 +1,22 @@
+{
+    "name": "Hatayama.UnityAiCliBridge.Editor.Tests",
+    "rootNamespace": "Hatayama.UnityAiCliBridge.Editor.Tests",
+    "references": [
+        "Hatayama.UnityAiCliBridge",
+        "Hatayama.UnityAiCliBridge.Editor"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

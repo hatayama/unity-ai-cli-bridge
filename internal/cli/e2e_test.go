@@ -28,15 +28,26 @@ func TestLiveUnityEndToEnd(t *testing.T) {
 	toolName := defaultLiveE2ETool
 	binaryPath := resolveLiveBinaryPath(t)
 
-	statusOutput := runCLICommand(t, binaryPath, nil, "bridge", "status", "--json")
+	statusOutput := runCLICommand(t, binaryPath, nil, "status", "--json")
 	statusPayload := decodeJSONObject(t, statusOutput)
 	connectionPayload := decodeObjectField(t, statusPayload, "connection")
 	connectionPath := stringField(t, connectionPayload, "connection_path")
 	if strings.TrimSpace(connectionPath) == "" {
-		t.Fatal("expected bridge status to include connection_path")
+		t.Fatal("expected status output to include connection_path")
 	}
 
-	listOutput := runCLICommand(t, binaryPath, nil, "tools", "list", "--json")
+	doctorOutput := runCLICommand(t, binaryPath, nil, "doctor", "--json")
+	doctorPayload := decodeJSONObject(t, doctorOutput)
+	if _, ok := doctorPayload["checks"]; !ok {
+		t.Fatalf("expected doctor output to include checks, got %#v", doctorPayload)
+	}
+
+	waitOutput := runCLICommand(t, binaryPath, nil, "wait", "--for=bridge")
+	if !strings.Contains(string(waitOutput), "bridge") {
+		t.Fatalf("expected wait output to mention bridge, got %q", string(waitOutput))
+	}
+
+	listOutput := runCLICommand(t, binaryPath, nil, "tools", "--json")
 	listPayload := decodeJSONObject(t, listOutput)
 	toolsValue, ok := listPayload["tools"].([]any)
 	if !ok {
@@ -60,13 +71,13 @@ func TestLiveUnityEndToEnd(t *testing.T) {
 		t.Fatalf("expected to find tool %s in %#v", toolName, toolsValue)
 	}
 
-	describeOutput := runCLICommand(t, binaryPath, nil, "tools", "describe", toolName, "--json")
+	describeOutput := runCLICommand(t, binaryPath, nil, "describe", toolName, "--json")
 	describePayload := decodeJSONObject(t, describeOutput)
 	if stringField(t, describePayload, "name") != toolName {
 		t.Fatalf("expected describe output for %s, got %#v", toolName, describePayload)
 	}
 
-	callOutput := runCLICommand(t, binaryPath, nil, "tools", "call", toolName, "--json-args", defaultLiveE2EJSONArgs)
+	callOutput := runCLICommand(t, binaryPath, nil, "call", toolName, "--json-args", defaultLiveE2EJSONArgs)
 	callPayload := decodeJSONObject(t, callOutput)
 	successValue, ok := callPayload["success"].(bool)
 	if !ok {
@@ -110,7 +121,7 @@ func TestLiveUnityEndToEnd(t *testing.T) {
 		},
 	})
 
-	mcpOutput := runCLICommand(t, binaryPath, mcpInput.Bytes(), "serve-mcp")
+	mcpOutput := runCLICommand(t, binaryPath, mcpInput.Bytes(), "mcp", "serve")
 	mcpResponses := readRPCResponses(t, mcpOutput)
 	if len(mcpResponses) != 3 {
 		t.Fatalf("expected 3 MCP responses, got %d", len(mcpResponses))

@@ -1,0 +1,19 @@
+{
+  "name": "com.hatayama.unity-ai-cli-bridge",
+  "displayName": "Unity AI CLI Bridge Companion",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Diagnostics and integration support package for unity-ai-cli direct bridge workflows.",
+  "keywords": [
+    "unity",
+    "mcp",
+    "cli",
+    "diagnostics"
+  ],
+  "author": {
+    "name": "Hatayama"
+  },
+  "dependencies": {
+    "com.unity.ai.assistant": "2.0.0-pre.1"
+  }
+}

@@ -1,118 +1,103 @@
 # Unity AI CLI Bridge V1 Specification
 
-## Goal
+## Summary
 
-Build a Go-based CLI that connects directly to Unity's `UnityMCPBridge` over IPC without using the relay binary.
+V1 consists of two tracked deliverables:
 
-The CLI must provide:
+- a standalone Go CLI that talks directly to Unity's built-in direct MCP bridge
+- a local Unity companion package under `Packages/src/com.hatayama.unity-ai-cli-bridge`
 
-- direct human-facing commands for bridge status, tool discovery, and tool execution
-- an MCP stdio adapter so AI clients can discover and call Unity tools through standard MCP flows
-- a minimal Skill document that explains how to use the CLI and MCP adapter safely
+`com.unity.ai.assistant` is treated as an immutable external dependency.  
+V1 must not depend on editing `Library/PackageCache` or any Unity-managed package internals.
 
-## Source Of Truth
+## Architecture
 
-The authoritative tool catalog is Unity's direct bridge command:
+### CLI
 
-- `get_available_tools`
+The CLI remains the primary runtime surface.
 
-Tool discovery must not rely on a static list embedded in the CLI or Skill.
+Required commands:
 
-Human discovery path:
+- `unity-ai-cli status`
+- `unity-ai-cli doctor`
+- `unity-ai-cli tools`
+- `unity-ai-cli describe <tool>`
+- `unity-ai-cli call <tool> --json-args '<json>'`
+- `unity-ai-cli wait`
+- `unity-ai-cli mcp serve`
 
-- `unity-ai-cli tools list`
-- `unity-ai-cli tools describe <tool>`
-
-AI discovery path:
-
-- `unity-ai-cli serve-mcp`
-- MCP `tools/list`
-
-## Discovery And Connection
-
-The CLI must resolve the active Unity bridge from discovery files stored under:
+The CLI must continue to resolve Unity direct bridge connection files from:
 
 - `~/.unity/mcp/connections/bridge-*.json`
+- paired heartbeat files `bridge-status-*.json`
 
-Each discovery file contains:
+The CLI must talk directly to the Unity bridge over:
 
-- connection type
-- connection path
-- project `Assets` path
-- protocol version
+- Unix sockets on macOS/Linux
+- Named pipes on Windows
 
-Resolution rules:
+### Unity companion package
 
-1. If `--socket-path` is provided, use it directly.
-2. Else if `--connection-file` is provided, load that file.
-3. Else resolve the Unity project root:
-   - use `--project` when provided
-   - otherwise walk upward from the current directory until a directory containing `Assets` is found
-4. Match `<project-root>/Assets` against the discovery file `project_path`
-5. If there is no matching bridge, fail with a clear error
+The companion package lives at:
 
-The CLI must read the paired heartbeat file when present:
+- `Packages/src/com.hatayama.unity-ai-cli-bridge`
 
-- `bridge-status-*.json`
+Its job is diagnostics and integration support only. It must not patch or override Unity MCP internals.
 
-This file is used by `bridge status` to report readiness without triggering a live client connection.
+The package writes companion snapshots to:
 
-## Unity Bridge Protocol
+- `Library/UnityAiCliBridge/diagnostics.json`
+- `Library/UnityAiCliBridge/tools.json`
 
-The CLI must implement Unity's direct bridge protocol v2.0.
+The package uses only public Unity MCP APIs such as:
 
-Protocol characteristics:
+- `UnityMCPBridge`
+- `McpToolRegistry.GetAvailableTools()`
 
-- server-first handshake
-- newline-delimited JSON messages
-- command request envelope:
-  - `type`
-  - `params`
-  - `requestId`
+## CLI Behavior
 
-The client must handle these bridge message types:
+### `status`
 
-- `handshake`
-- `approval_pending`
-- `approval_denied`
-- `command_in_progress`
+Show discovery and heartbeat information without requiring a live bridge connection.
 
-The client must support these commands:
+If a companion diagnostics snapshot exists, include:
 
-- `set_client_info`
-- `get_available_tools`
-- `<Unity tool name>`
+- bridge enabled/running state
+- active client count
+- tool count
+- last diagnostics update
 
-The client must always send a `requestId` so responses can be matched reliably.
+### `doctor`
 
-## CLI Commands
+Diagnose the current project using this precedence:
 
-### `bridge status`
+1. discovery file and heartbeat file
+2. companion diagnostics snapshots
+3. live bridge probe only when earlier layers do not already show a healthy bridge
 
-Show:
+The output must classify issues into actionable checks and advice.
 
-- project root
-- Assets path
-- discovery file path
-- connection path
-- protocol version
-- heartbeat status when available
+Expected advice categories:
 
-This command should not require a live bridge connection.
+- Unity project not found
+- Unity bridge not discovered
+- heartbeat not ready
+- pending approval likely
+- direct connection already occupied
 
-### `tools list`
+### `tools`
 
-Connect to Unity, set client info, call `get_available_tools`, and print the tool list.
+Connect live to Unity and call `get_available_tools`.
 
 Requirements:
 
 - support `--json`
-- preserve Unity tool names exactly
-- include schemas in JSON mode
+- print the exact Unity tool names
+- do not rely on the companion tool snapshot for primary tool execution
 
-### `tools describe <tool>`
+### `describe`
 
-Resolve a single tool from `get_available_tools` and print:
+Resolve a single tool from the live tool list and print:
 
 - name
 - title
@@ -121,134 +106,122 @@ Resolve a single tool from `get_available_tools` and print:
 - output schema
 - annotations
 
-### `tools call <tool> --json-args '<json>'`
+### `call`
 
-Call a Unity tool directly.
+Execute one Unity tool directly.
 
 Requirements:
 
-- default `params` to `{}` when omitted
-- print result JSON on stdout
-- print actionable errors on stderr
-- return non-zero exit code on failure
+- accept `--json-args`
+- default to `{}` when omitted
+- print raw JSON result on stdout
+- use non-zero exit on error
 
-## MCP Adapter
+### `wait`
 
-`serve-mcp` must expose a standard JSON-RPC over stdio MCP server.
+Wait for one of these targets:
 
-Required methods:
+- `bridge`
+- `status`
+- `tools`
+
+Rules:
+
+- `status` waits for a ready heartbeat file
+- `bridge` accepts either a ready heartbeat or a running companion diagnostics snapshot
+- `tools` uses the companion tool snapshot by default
+- `tools --live` waits until a live `get_available_tools` succeeds
+
+### `mcp serve`
+
+Expose a standard stdio MCP server supporting:
 
 - `initialize`
+- `ping`
 - `tools/list`
 - `tools/call`
-- `ping`
 
-Behavior:
+Tool discovery and tool execution still come from the live Unity direct bridge.
 
-- `initialize` returns server info and tool capability support
-- `tools/list` maps Unity `get_available_tools` results into MCP tool definitions
-- `tools/call` maps MCP call arguments into Unity direct bridge commands
-- Unity tool names remain unchanged in V1
+## Companion Package Behavior
 
-Tool call result behavior:
+### Package contents
 
-- if Unity returns a successful structured object, expose it through `structuredContent`
-- also include a text payload containing JSON for broad client compatibility
-- if Unity tool execution fails, return `isError: true`
+The package must include:
 
-## Skill
+- `package.json`
+- `Runtime/`
+- `Editor/`
+- `Tests/Editor/`
+- `README.md`
+- `CHANGELOG.md`
 
-Provide a minimal Skill document under the repository's local skill directory.
+### Editor features
 
-The Skill must explain:
+The package must provide:
 
-- how to start or use `serve-mcp`
-- that tool discovery is dynamic
-- that the agent should inspect available tools before acting
-- common Unity workflows:
-  - read console
-  - inspect scenes
-  - inspect GameObjects
-  - inspect assets
-  - inspect or edit scripts
+- menu command to refresh snapshots
+- menu command to open `Project Settings > AI > Unity MCP`
+- menu command to print a diagnostics summary
+- menu command to reveal the snapshot directory
 
-The Skill must not hardcode a complete static list of Unity tools.
+### Snapshot schema
 
-## Implementation Layout
+`diagnostics.json` must contain:
 
-- `cmd/unity-ai-cli/`
-- `internal/cli/`
-- `internal/discovery/`
-- `internal/transport/`
-- `internal/protocol/`
-- `internal/unitybridge/`
-- `internal/mcpserver/`
-- `tests/testdata/`
-- `spec/`
-- local skill directory
+- schema version
+- project path
+- Unity version
+- package name and version
+- MCP settings path
+- bridge enabled state
+- bridge running state
+- active client count
+- active identity keys
+- tool count
+- tool names
+- generation timestamp
 
-## Test Strategy
+`tools.json` must contain:
 
-Development must proceed in small slices.
+- schema version
+- generation timestamp
+- tools array
+- each tool entry includes name, title, and description
 
-For each slice:
+### Refresh timing
 
-1. run Go unit tests
-2. run fake bridge integration tests
-3. run a real Unity smoke check with `uloop`
+The companion package refreshes snapshots:
 
-The work must not rely only on fake tests until the end.
+- on editor load
+- after assembly reload
+- when triggered manually from the menu
 
-### Slice sequence
+V1 does not require continuous polling.
 
-1. discovery
-2. transport
-3. protocol
-4. tool discovery
-5. tool execution
-6. MCP adapter
-7. Skill verification
+## Tests
 
-### Automated coverage
-
-Unit tests:
+### Go
 
 - discovery resolution
-- project matching
-- protocol message parsing
-- response normalization
-- MCP mapping
+- diagnostics snapshot parsing
+- direct bridge protocol tests
+- MCP server tests
+- live CLI E2E covering `status`, `doctor`, `wait`, `tools`, `describe`, `call`, and `mcp serve`
 
-Integration tests:
+### Unity
 
-- fake bridge handshake
-- approval pending flow
-- approval denied flow
-- command in progress flow
-- `get_available_tools`
-- direct tool execution
-- MCP `tools/list`
-- MCP `tools/call`
-
-### Live Unity smoke checks
-
-Use `uloop` for repeated validation during implementation.
-
-Default smoke commands:
-
-- `bridge status`
-- `tools list --json`
-- `tools describe Unity.ReadConsole`
-- `tools call Unity.ReadConsole --json-args '{}'`
-
-At major milestones, run an end-to-end MCP smoke check through `serve-mcp`.
+- EditMode tests for diagnostics snapshot generation
+- EditMode tests for snapshot writer output
+- package compile verification via `uloop compile`
 
 ## Acceptance Criteria
 
-- the CLI connects directly to Unity's bridge without relay
-- `tools list` returns live Unity tool metadata
-- `tools call` can invoke at least `Unity.ReadConsole`
-- `serve-mcp` exposes Unity tools through MCP `tools/list` and `tools/call`
-- approval waiting and denial are handled correctly
-- fake bridge tests and live Unity smoke checks both pass
-- the Skill works with dynamic tool discovery
+- the CLI works without modifying `com.unity.ai.assistant`
+- the local companion package is installed through `Packages/manifest.json`
+- `status` reports discovery and companion diagnostics when available
+- `doctor` provides actionable output for approval and readiness issues
+- `tools`, `describe`, and `call` execute through the live Unity direct bridge
+- `wait` supports heartbeat-based and snapshot-based readiness checks
+- `mcp serve` exposes Unity tools through MCP stdio
+- Unity companion package writes both `diagnostics.json` and `tools.json`

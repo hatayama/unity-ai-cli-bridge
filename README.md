@@ -1,58 +1,63 @@
 # unity-ai-cli-bridge
 
-Experimental Go CLI for calling Unity's built-in MCP tools over the direct Unity bridge.
+Experimental direct-bridge tooling for Unity MCP.
 
-## Overview
+This repository contains:
 
-Unity's `com.unity.ai.assistant` package already exposes MCP tools inside the Editor. This repository adds a CLI that connects straight to `UnityMCPBridge` over IPC and does not connect to the Unity relay binary.
+- a Go CLI that connects directly to Unity's built-in `UnityMCPBridge`
+- a local Unity companion package under `Packages/src/com.hatayama.unity-ai-cli-bridge`
 
-Current goals:
-
-- discover Unity tools from the command line
-- call Unity tools directly with JSON arguments
-- expose the same tool surface as an MCP stdio server for AI clients
+The Unity-managed `com.unity.ai.assistant` package is treated as immutable.  
+This project does not rely on editing `Library/PackageCache`.
 
 ## Architecture
 
 ```text
 unity-ai-cli
-  |- bridge status
-  |- tools list
-  |- tools describe
-  |- tools call
-  `- serve-mcp
+  |- status
+  |- doctor
+  |- tools
+  |- describe
+  |- call
+  |- wait
+  `- mcp serve
         |
         v
 UnityMCPBridge direct IPC
-  |- Unix socket on macOS/Linux
-  `- Named pipe on Windows
         |
         v
-Unity Editor
-        |
-        v
-McpToolRegistry
+Unity Editor + com.unity.ai.assistant
 
-The relay binary is not part of this runtime path.
+Packages/src/com.hatayama.unity-ai-cli-bridge
+  `- companion diagnostics snapshots
+        |
+        v
+Library/UnityAiCliBridge/diagnostics.json
+Library/UnityAiCliBridge/tools.json
 ```
 
-## Status
-
-Implemented and smoke-tested:
-
-- Unity bridge discovery from `~/.unity/mcp/connections/bridge-*.json`
-- direct bridge handshake and command execution
-- `tools list`, `tools describe`, and `tools call`
-- `serve-mcp` for MCP `initialize`, `tools/list`, and `tools/call`
-
-The implementation is still early, but it is already usable for direct local experiments.
+The relay binary is not part of this runtime path.
 
 ## Requirements
 
 - Unity project with `com.unity.ai.assistant`
 - Unity MCP enabled in the Editor
-- Go 1.25 or later to build from source
-- Approval for the CLI client in `Project Settings > AI > Unity MCP`
+- Go 1.25 or later to build the CLI
+- approval for the CLI client in `Project Settings > AI > Unity MCP`
+
+## Companion Package
+
+The repository installs a local Unity package from:
+
+- `Packages/src/com.hatayama.unity-ai-cli-bridge`
+
+The package adds:
+
+- diagnostics snapshots for the CLI
+- Editor menu commands for bridge diagnostics
+- EditMode tests for the companion layer
+
+The package is wired through `Packages/manifest.json`.
 
 ## Build
 
@@ -62,69 +67,84 @@ go build -o ./bin/unity-ai-cli ./cmd/unity-ai-cli
 
 ## Usage
 
-Show the currently resolved bridge:
+Show the currently resolved bridge and companion snapshot state:
 
 ```sh
-./bin/unity-ai-cli bridge status --json
+./bin/unity-ai-cli status --json
 ```
 
-List available Unity tools:
+Diagnose discovery, heartbeat, companion snapshots, and likely approval issues:
 
 ```sh
-./bin/unity-ai-cli tools list --json
+./bin/unity-ai-cli doctor --json
 ```
 
-Describe one tool:
+Wait for bridge readiness:
 
 ```sh
-./bin/unity-ai-cli tools describe Unity_GetConsoleLogs
+./bin/unity-ai-cli wait --for=bridge
 ```
 
-Call a tool directly:
+List available Unity tools from the live direct bridge:
 
 ```sh
-./bin/unity-ai-cli tools call Unity_GetConsoleLogs --json-args '{"maxEntries":5,"includeStackTrace":false}'
+./bin/unity-ai-cli tools --json
+```
+
+Describe one Unity tool:
+
+```sh
+./bin/unity-ai-cli describe Unity_GetConsoleLogs --json
+```
+
+Call a Unity tool directly:
+
+```sh
+./bin/unity-ai-cli call Unity_GetConsoleLogs --json-args '{"maxEntries":5,"includeStackTrace":false}'
 ```
 
 Expose Unity tools as an MCP stdio server:
 
 ```sh
-./bin/unity-ai-cli serve-mcp
+./bin/unity-ai-cli mcp serve
 ```
 
 ## Approval Flow
 
-The first direct connection may remain pending until Unity approves it.
+The first direct connection may stay pending until Unity approves the CLI.
 
-If a command blocks or fails with an approval-related message:
+If `doctor`, `tools`, `describe`, `call`, or `mcp serve` reports an approval-related issue:
 
 1. Open `Edit > Project Settings > AI > Unity MCP`
-2. Find the entry under `Pending Connections`
-3. Accept the `unity-ai-cli` client
+2. Check `Pending Connections`
+3. Approve the `unity-ai-cli` client
 
-This approval is handled in the Unity settings UI, not by a modal dialog.
-
-## Notes
-
-- Unity currently exposes tool names in sanitized form such as `Unity_GetConsoleLogs`.
-- In the current Unity configuration, the direct bridge may allow only one active direct connection at a time.
-- Live validation has been done on macOS. Windows named pipe support is implemented, but not yet live-smoke-tested in this repository.
+This approval is handled from the Unity settings UI, not a modal dialog.
 
 ## Development
 
-Run tests:
+Run Go tests:
 
 ```sh
-go test ./...
+GOCACHE=/tmp/unity-ai-cli-bridge-go-cache go test ./...
 ```
 
-Useful local smoke checks:
+Compile the Unity project:
 
 ```sh
-./bin/unity-ai-cli bridge status --json
-./bin/unity-ai-cli tools list --json
-./bin/unity-ai-cli tools describe Unity_GetConsoleLogs
-./bin/unity-ai-cli tools call Unity_GetConsoleLogs --json-args '{"maxEntries":5,"includeStackTrace":false}'
+uloop compile
+```
+
+Run companion package EditMode tests:
+
+```sh
+uloop run-tests --test-mode EditMode --filter-type regex --filter-value "BridgeDiagnosticsServiceTests|BridgeDiagnosticsSnapshotWriterTests"
+```
+
+Run the live end-to-end smoke test:
+
+```sh
+sh scripts/live-e2e.sh
 ```
 
 ## Specification

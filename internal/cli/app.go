@@ -8,11 +8,9 @@ import (
     "flag"
     "fmt"
     "io"
-    "os"
     "strings"
     "time"
 
-    "github.com/hatayama/unity-ai-cli-bridge/internal/discovery"
     "github.com/hatayama/unity-ai-cli-bridge/internal/mcpserver"
     "github.com/hatayama/unity-ai-cli-bridge/internal/unitybridge"
 )
@@ -26,12 +24,22 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
     }
 
     switch args[0] {
-    case "bridge":
-        return runBridge(args[1:], stdout, stderr)
+    case "status":
+        return runStatus(args[1:], stdout, stderr)
+    case "doctor":
+        return runDoctor(args[1:], stdout, stderr)
     case "tools":
         return runTools(args[1:], stdout, stderr)
+    case "describe":
+        return runDescribe(args[1:], stdout, stderr)
+    case "call":
+        return runCall(args[1:], stdout, stderr)
+    case "wait":
+        return runWait(args[1:], stdout, stderr)
+    case "mcp":
+        return runMcp(args[1:], stdin, stdout, stderr)
     case "serve-mcp":
-        return runServeMcp(args[1:], stdin, stdout, stderr)
+        return runMcp(append([]string{"serve"}, args[1:]...), stdin, stdout, stderr)
     default:
         fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
         printUsage(stderr)
@@ -39,100 +47,115 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
     }
 }
 
-func runBridge(args []string, stdout io.Writer, stderr io.Writer) int {
-    if len(args) == 0 || args[0] != "status" {
-        fmt.Fprintln(stderr, "bridge supports only the status subcommand")
-        return 1
-    }
-
-    flags := flag.NewFlagSet("bridge status", flag.ContinueOnError)
+func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
+    flags := flag.NewFlagSet("status", flag.ContinueOnError)
     flags.SetOutput(stderr)
 
-    projectRoot := flags.String("project", "", "Unity project root")
-    connectionFile := flags.String("connection-file", "", "Path to a specific bridge discovery file")
-    socketPath := flags.String("socket-path", "", "Direct socket or named pipe path")
-    jsonOutput := flags.Bool("json", false, "Print JSON output")
-
-    if err := flags.Parse(args[1:]); err != nil {
-        return 1
-    }
-
-    currentDir, err := os.Getwd()
-    if err != nil {
-        fmt.Fprintf(stderr, "failed to resolve current directory: %v\n", err)
-        return 1
-    }
-
-    resolved, err := discovery.Resolve(discovery.ResolveOptions{
-        ProjectRoot:    *projectRoot,
-        ConnectionFile: *connectionFile,
-        SocketPath:     *socketPath,
-        CurrentDir:     currentDir,
-    })
-    if err != nil {
-        fmt.Fprintf(stderr, "failed to resolve Unity bridge: %v\n", err)
-        return 1
-    }
-
-    payload := map[string]any{
-        "projectRoot":    resolved.ProjectRoot,
-        "projectAssets":  resolved.ProjectAssets,
-        "connectionFile": resolved.ConnectionFile,
-        "statusFile":     resolved.StatusFile,
-        "connection":     resolved.ConnectionInfo,
-        "status":         resolved.StatusInfo,
-    }
-
-    if *jsonOutput {
-        return printJSON(stdout, payload, false)
-    }
-
-    fmt.Fprintf(stdout, "Project Root: %s\n", valueOrUnknown(resolved.ProjectRoot))
-    fmt.Fprintf(stdout, "Assets Path: %s\n", valueOrUnknown(resolved.ProjectAssets))
-    fmt.Fprintf(stdout, "Connection File: %s\n", valueOrUnknown(resolved.ConnectionFile))
-    fmt.Fprintf(stdout, "Connection Path: %s\n", valueOrUnknown(resolved.ConnectionInfo.ConnectionPath))
-    fmt.Fprintf(stdout, "Protocol Version: %s\n", valueOrUnknown(resolved.ConnectionInfo.ProtocolVersion))
-    if resolved.StatusInfo != nil {
-        fmt.Fprintf(stdout, "Heartbeat Status: %s\n", valueOrUnknown(resolved.StatusInfo.Status))
-        fmt.Fprintf(stdout, "Last Heartbeat: %s\n", valueOrUnknown(resolved.StatusInfo.LastHeartbeat))
-    }
-
-    return 0
-}
-
-func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
-    if len(args) == 0 {
-        fmt.Fprintln(stderr, "tools requires a subcommand: list, describe, or call")
-        return 1
-    }
-
-    switch args[0] {
-    case "list":
-        return runToolsList(args[1:], stdout, stderr)
-    case "describe":
-        return runToolsDescribe(args[1:], stdout, stderr)
-    case "call":
-        return runToolsCall(args[1:], stdout, stderr)
-    default:
-        fmt.Fprintf(stderr, "unknown tools subcommand: %s\n", args[0])
-        return 1
-    }
-}
-
-func runToolsList(args []string, stdout io.Writer, stderr io.Writer) int {
-    flags := flag.NewFlagSet("tools list", flag.ContinueOnError)
-    flags.SetOutput(stderr)
-
-    projectRoot := flags.String("project", "", "Unity project root")
-    connectionFile := flags.String("connection-file", "", "Path to a specific bridge discovery file")
-    socketPath := flags.String("socket-path", "", "Direct socket or named pipe path")
+    options := bindConnectionFlags(flags)
     jsonOutput := flags.Bool("json", false, "Print JSON output")
 
     if err := flags.Parse(args); err != nil {
         return 1
     }
 
-    bridgeClient, cleanup, err := openBridgeClient(*projectRoot, *connectionFile, *socketPath)
+    bridgeContext, err := resolveBridgeContext(options)
+    if err != nil {
+        fmt.Fprintf(stderr, "failed to resolve Unity bridge: %v\n", err)
+        return 1
+    }
+
+    payload := map[string]any{
+        "projectRoot":    bridgeContext.Resolved.ProjectRoot,
+        "projectAssets":  bridgeContext.Resolved.ProjectAssets,
+        "connectionFile": bridgeContext.Resolved.ConnectionFile,
+        "statusFile":     bridgeContext.Resolved.StatusFile,
+        "connection":     bridgeContext.Resolved.ConnectionInfo,
+        "status":         bridgeContext.Resolved.StatusInfo,
+        "companion": map[string]any{
+            "directory":       bridgeContext.SnapshotPaths.Directory,
+            "diagnosticsFile": bridgeContext.SnapshotPaths.DiagnosticsFile,
+            "toolsFile":       bridgeContext.SnapshotPaths.ToolsFile,
+            "diagnostics":     bridgeContext.Diagnostics,
+            "tools":           bridgeContext.ToolSnapshot,
+        },
+    }
+
+    if *jsonOutput {
+        return printJSON(stdout, payload, true)
+    }
+
+    fmt.Fprintf(stdout, "Project Root: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectRoot))
+    fmt.Fprintf(stdout, "Assets Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectAssets))
+    fmt.Fprintf(stdout, "Connection File: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionFile))
+    fmt.Fprintf(stdout, "Connection Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ConnectionPath))
+    fmt.Fprintf(stdout, "Protocol Version: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ProtocolVersion))
+    if bridgeContext.Resolved.StatusInfo != nil {
+        fmt.Fprintf(stdout, "Heartbeat Status: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.Status))
+        fmt.Fprintf(stdout, "Last Heartbeat: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.LastHeartbeat))
+    }
+    fmt.Fprintf(stdout, "Diagnostics File: %s\n", valueOrUnknown(bridgeContext.SnapshotPaths.DiagnosticsFile))
+    if bridgeContext.Diagnostics != nil {
+        fmt.Fprintf(stdout, "Bridge Running: %t\n", bridgeContext.Diagnostics.BridgeRunning)
+        fmt.Fprintf(stdout, "Active Clients: %d\n", bridgeContext.Diagnostics.ActiveClientCount)
+        fmt.Fprintf(stdout, "Tool Count: %d\n", bridgeContext.Diagnostics.ToolCount)
+        fmt.Fprintf(stdout, "Diagnostics Updated: %s\n", valueOrUnknown(bridgeContext.Diagnostics.GeneratedAtUTC))
+    }
+
+    return 0
+}
+
+func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
+    flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
+    flags.SetOutput(stderr)
+
+    options := bindConnectionFlags(flags)
+    jsonOutput := flags.Bool("json", false, "Print JSON output")
+    liveTimeout := flags.Duration("live-timeout", 5*time.Second, "Timeout for an optional live probe")
+
+    if err := flags.Parse(args); err != nil {
+        return 1
+    }
+
+    report := buildDoctorReport(options, *liveTimeout)
+    if *jsonOutput {
+        return printJSON(stdout, report, true)
+    }
+
+    fmt.Fprintf(stdout, "Project Root: %s\n", valueOrUnknown(report.ProjectRoot))
+    fmt.Fprintf(stdout, "Connection File: %s\n", valueOrUnknown(report.ConnectionFile))
+    fmt.Fprintf(stdout, "Status File: %s\n", valueOrUnknown(report.StatusFile))
+    fmt.Fprintf(stdout, "Diagnostics File: %s\n", valueOrUnknown(report.DiagnosticsFile))
+    fmt.Fprintf(stdout, "Tools File: %s\n", valueOrUnknown(report.ToolsFile))
+    fmt.Fprintln(stdout, "Checks:")
+    for _, check := range report.Checks {
+        fmt.Fprintf(stdout, "- [%s] %s: %s\n", strings.ToUpper(check.Status), check.Name, check.Message)
+    }
+    if len(report.Advice) > 0 {
+        fmt.Fprintln(stdout, "Advice:")
+        for _, advice := range report.Advice {
+            fmt.Fprintf(stdout, "- %s\n", advice)
+        }
+    }
+
+    if report.HasFailure() {
+        return 1
+    }
+
+    return 0
+}
+
+func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
+    flags := flag.NewFlagSet("tools", flag.ContinueOnError)
+    flags.SetOutput(stderr)
+
+    options := bindConnectionFlags(flags)
+    jsonOutput := flags.Bool("json", false, "Print JSON output")
+
+    if err := flags.Parse(args); err != nil {
+        return 1
+    }
+
+    bridgeClient, cleanup, err := openBridgeClient(*options, 20*time.Second)
     if err != nil {
         fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
         return 1
@@ -149,7 +172,7 @@ func runToolsList(args []string, stdout io.Writer, stderr io.Writer) int {
     }
 
     if *jsonOutput {
-        return printJSON(stdout, tools, false)
+        return printJSON(stdout, tools, true)
     }
 
     for _, tool := range tools.Tools {
@@ -159,19 +182,17 @@ func runToolsList(args []string, stdout io.Writer, stderr io.Writer) int {
     return 0
 }
 
-func runToolsDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
+func runDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
     toolName, parseArgs, err := peelLeadingToolArg(args)
     if err != nil {
         fmt.Fprintln(stderr, err.Error())
         return 1
     }
 
-    flags := flag.NewFlagSet("tools describe", flag.ContinueOnError)
+    flags := flag.NewFlagSet("describe", flag.ContinueOnError)
     flags.SetOutput(stderr)
 
-    projectRoot := flags.String("project", "", "Unity project root")
-    connectionFile := flags.String("connection-file", "", "Path to a specific bridge discovery file")
-    socketPath := flags.String("socket-path", "", "Direct socket or named pipe path")
+    options := bindConnectionFlags(flags)
     jsonOutput := flags.Bool("json", false, "Print JSON output")
 
     if err := flags.Parse(parseArgs); err != nil {
@@ -179,19 +200,17 @@ func runToolsDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
     }
 
     if toolName == "" {
-        remainingArgs := flags.Args()
-        if len(remainingArgs) != 1 {
-            fmt.Fprintln(stderr, "tools describe requires a single tool name")
+        if len(flags.Args()) != 1 {
+            fmt.Fprintln(stderr, "describe requires a single tool name")
             return 1
         }
-
-        toolName = remainingArgs[0]
+        toolName = flags.Args()[0]
     } else if len(flags.Args()) > 0 {
-        fmt.Fprintln(stderr, "tools describe accepts only one tool name")
+        fmt.Fprintln(stderr, "describe accepts only one tool name")
         return 1
     }
 
-    bridgeClient, cleanup, err := openBridgeClient(*projectRoot, *connectionFile, *socketPath)
+    bridgeClient, cleanup, err := openBridgeClient(*options, 20*time.Second)
     if err != nil {
         fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
         return 1
@@ -213,7 +232,7 @@ func runToolsDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
         }
 
         if *jsonOutput {
-            return printJSON(stdout, tool, false)
+            return printJSON(stdout, tool, true)
         }
 
         fmt.Fprintf(stdout, "Name: %s\n", tool.Name)
@@ -236,19 +255,17 @@ func runToolsDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
     return 1
 }
 
-func runToolsCall(args []string, stdout io.Writer, stderr io.Writer) int {
+func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
     toolName, parseArgs, err := peelLeadingToolArg(args)
     if err != nil {
         fmt.Fprintln(stderr, err.Error())
         return 1
     }
 
-    flags := flag.NewFlagSet("tools call", flag.ContinueOnError)
+    flags := flag.NewFlagSet("call", flag.ContinueOnError)
     flags.SetOutput(stderr)
 
-    projectRoot := flags.String("project", "", "Unity project root")
-    connectionFile := flags.String("connection-file", "", "Path to a specific bridge discovery file")
-    socketPath := flags.String("socket-path", "", "Direct socket or named pipe path")
+    options := bindConnectionFlags(flags)
     jsonArgs := flags.String("json-args", "{}", "JSON encoded tool arguments")
 
     if err := flags.Parse(parseArgs); err != nil {
@@ -256,25 +273,23 @@ func runToolsCall(args []string, stdout io.Writer, stderr io.Writer) int {
     }
 
     if toolName == "" {
-        remainingArgs := flags.Args()
-        if len(remainingArgs) != 1 {
-            fmt.Fprintln(stderr, "tools call requires a single tool name")
+        if len(flags.Args()) != 1 {
+            fmt.Fprintln(stderr, "call requires a single tool name")
             return 1
         }
-
-        toolName = remainingArgs[0]
+        toolName = flags.Args()[0]
     } else if len(flags.Args()) > 0 {
-        fmt.Fprintln(stderr, "tools call accepts only one tool name")
+        fmt.Fprintln(stderr, "call accepts only one tool name")
         return 1
     }
 
-    var toolArguments map[string]any
+    toolArguments := make(map[string]any)
     if err := json.Unmarshal([]byte(*jsonArgs), &toolArguments); err != nil {
         fmt.Fprintf(stderr, "failed to parse --json-args: %v\n", err)
         return 1
     }
 
-    bridgeClient, cleanup, err := openBridgeClient(*projectRoot, *connectionFile, *socketPath)
+    bridgeClient, cleanup, err := openBridgeClient(*options, 30*time.Second)
     if err != nil {
         fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
         return 1
@@ -295,28 +310,59 @@ func runToolsCall(args []string, stdout io.Writer, stderr io.Writer) int {
         return 0
     }
 
-    if _, err := stdout.Write(result); err != nil {
-        fmt.Fprintf(stderr, "failed to write tool result: %v\n", err)
-        return 1
-    }
-    _, _ = fmt.Fprintln(stdout)
-    return 0
+    return printJSONBytes(stdout, result)
 }
 
-func runServeMcp(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
-    flags := flag.NewFlagSet("serve-mcp", flag.ContinueOnError)
+func runWait(args []string, stdout io.Writer, stderr io.Writer) int {
+    flags := flag.NewFlagSet("wait", flag.ContinueOnError)
     flags.SetOutput(stderr)
 
-    projectRoot := flags.String("project", "", "Unity project root")
-    connectionFile := flags.String("connection-file", "", "Path to a specific bridge discovery file")
-    socketPath := flags.String("socket-path", "", "Direct socket or named pipe path")
+    options := bindConnectionFlags(flags)
+    waitFor := flags.String("for", "bridge", "Wait target: bridge, status, or tools")
+    timeout := flags.Duration("timeout", 30*time.Second, "Maximum wait duration")
+    interval := flags.Duration("interval", 1*time.Second, "Polling interval")
+    live := flags.Bool("live", false, "Require a live bridge probe for tools")
 
     if err := flags.Parse(args); err != nil {
         return 1
     }
 
+    deadline := time.Now().Add(*timeout)
+    lastMessage := "not ready yet"
+    for {
+        ready, message := evaluateWaitTarget(*options, *waitFor, *live)
+        if ready {
+            fmt.Fprintf(stdout, "%s\n", message)
+            return 0
+        }
+
+        lastMessage = message
+        if time.Now().After(deadline) {
+            fmt.Fprintf(stderr, "wait timed out: %s\n", lastMessage)
+            return 1
+        }
+
+        time.Sleep(*interval)
+    }
+}
+
+func runMcp(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
+    if len(args) == 0 || args[0] != "serve" {
+        fmt.Fprintln(stderr, "mcp supports only the serve subcommand")
+        return 1
+    }
+
+    flags := flag.NewFlagSet("mcp serve", flag.ContinueOnError)
+    flags.SetOutput(stderr)
+
+    options := bindConnectionFlags(flags)
+
+    if err := flags.Parse(args[1:]); err != nil {
+        return 1
+    }
+
     server := mcpserver.New(func(ctx context.Context) (unitybridge.Bridge, error) {
-        bridgeClient, _, err := openBridgeClient(*projectRoot, *connectionFile, *socketPath)
+        bridgeClient, _, err := openBridgeClient(*options, 20*time.Second)
         if err != nil {
             return nil, err
         }
@@ -329,37 +375,6 @@ func runServeMcp(args []string, stdin io.Reader, stdout io.Writer, stderr io.Wri
     }
 
     return 0
-}
-
-func openBridgeClient(projectRoot string, connectionFile string, socketPath string) (*unitybridge.Client, func(), error) {
-    currentDir, err := os.Getwd()
-    if err != nil {
-        return nil, nil, err
-    }
-
-    resolved, err := discovery.Resolve(discovery.ResolveOptions{
-        ProjectRoot:    projectRoot,
-        ConnectionFile: connectionFile,
-        SocketPath:     socketPath,
-        CurrentDir:     currentDir,
-    })
-    if err != nil {
-        return nil, nil, err
-    }
-
-    ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-    defer cancel()
-
-    bridgeClient, err := unitybridge.Connect(ctx, resolved, clientName)
-    if err != nil {
-        return nil, nil, err
-    }
-
-    cleanup := func() {
-        _ = bridgeClient.Close()
-    }
-
-    return bridgeClient, cleanup, nil
 }
 
 func printJSON(writer io.Writer, payload any, pretty bool) int {
@@ -377,6 +392,17 @@ func printJSON(writer io.Writer, payload any, pretty bool) int {
     _, _ = writer.Write(data)
     _, _ = fmt.Fprintln(writer)
     return 0
+}
+
+func printJSONBytes(writer io.Writer, payload []byte) int {
+    var decoded any
+    if err := json.Unmarshal(payload, &decoded); err != nil {
+        _, _ = writer.Write(payload)
+        _, _ = fmt.Fprintln(writer)
+        return 0
+    }
+
+    return printJSON(writer, decoded, true)
 }
 
 func printRawJSON(writer io.Writer, payload []byte) {
@@ -405,11 +431,13 @@ func printUsage(writer io.Writer) {
     _, _ = fmt.Fprintln(writer, "Usage: unity-ai-cli <command>")
     _, _ = fmt.Fprintln(writer, "")
     _, _ = fmt.Fprintln(writer, "Commands:")
-    _, _ = fmt.Fprintln(writer, "  bridge status")
-    _, _ = fmt.Fprintln(writer, "  tools list")
-    _, _ = fmt.Fprintln(writer, "  tools describe <tool>")
-    _, _ = fmt.Fprintln(writer, "  tools call <tool> --json-args '{}'")
-    _, _ = fmt.Fprintln(writer, "  serve-mcp")
+    _, _ = fmt.Fprintln(writer, "  status")
+    _, _ = fmt.Fprintln(writer, "  doctor")
+    _, _ = fmt.Fprintln(writer, "  tools")
+    _, _ = fmt.Fprintln(writer, "  describe <tool>")
+    _, _ = fmt.Fprintln(writer, "  call <tool> --json-args '{}'")
+    _, _ = fmt.Fprintln(writer, "  wait")
+    _, _ = fmt.Fprintln(writer, "  mcp serve")
 }
 
 func valueOrUnknown(value string) string {
