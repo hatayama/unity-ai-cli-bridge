@@ -116,6 +116,7 @@ Packages/src/TypeScriptServer~/dist/*
 
 # CLI (published to npm separately, dist not committed)
 Packages/src/Cli~/dist/
+/bin/
 
 # Environment configuration files
 .env
