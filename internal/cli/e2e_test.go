@@ -71,10 +71,36 @@ func TestLiveUnityEndToEnd(t *testing.T) {
 		t.Fatalf("expected to find tool %s in %#v", toolName, toolsValue)
 	}
 
+	helpListOutput := runCLICommand(t, binaryPath, nil, "help", "--json")
+	helpListPayload := decodeJSONObject(t, helpListOutput)
+	helpToolsValue := decodeArrayField(t, helpListPayload, "tools")
+	if len(helpToolsValue) == 0 {
+		t.Fatal("expected help output to include enabled tools")
+	}
+
+	helpOutput := runCLICommand(t, binaryPath, nil, "help", toolName, "--json")
+	helpPayload := decodeJSONObject(t, helpOutput)
+	if stringField(t, helpPayload, "name") != toolName {
+		t.Fatalf("expected help output for %s, got %#v", toolName, helpPayload)
+	}
+
 	describeOutput := runCLICommand(t, binaryPath, nil, "describe", toolName, "--json")
 	describePayload := decodeJSONObject(t, describeOutput)
 	if stringField(t, describePayload, "name") != toolName {
 		t.Fatalf("expected describe output for %s, got %#v", toolName, describePayload)
+	}
+
+	recipesOutput := runCLICommand(t, binaryPath, nil, "recipes", "--json")
+	recipesPayload := decodeJSONObject(t, recipesOutput)
+	recipeList := decodeArrayField(t, recipesPayload, "recipes")
+	if len(recipeList) == 0 {
+		t.Fatal("expected recipes output to include at least one recipe")
+	}
+
+	recipeOutput := runCLICommand(t, binaryPath, nil, "recipes", "inspect-console", "--json")
+	recipePayload := decodeJSONObject(t, recipeOutput)
+	if stringField(t, recipePayload, "id") != "inspect-console" {
+		t.Fatalf("expected inspect-console recipe, got %#v", recipePayload)
 	}
 
 	callOutput := runCLICommand(t, binaryPath, nil, "call", toolName, "--json-args", defaultLiveE2EJSONArgs)

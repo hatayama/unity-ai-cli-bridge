@@ -1,0 +1,192 @@
+[
+  {
+    "id": "inspect-console",
+    "title": "Inspect recent Unity Console logs",
+    "summary": "Read recent errors and warnings before taking other debugging steps.",
+    "goal": "Use the current Console output to understand the latest editor failures or warnings.",
+    "whenToUse": [
+      "A command failed and you want the latest error context.",
+      "You need a quick debugging snapshot without changing project state."
+    ],
+    "prerequisites": [
+      "The Unity Editor is open and the bridge is running."
+    ],
+    "requiredTools": [
+      "Unity_GetConsoleLogs"
+    ],
+    "steps": [
+      "Start with a small maxEntries value such as 5 or 10.",
+      "Restrict logTypes to error,warning when you only care about failures.",
+      "Turn includeStackTrace on when the short message is not enough."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Read the latest warning and error entries",
+        "command": "unity-ai-cli call Unity_GetConsoleLogs --json-args '{\"maxEntries\":10,\"includeStackTrace\":true,\"logTypes\":\"error,warning\"}'"
+      }
+    ]
+  },
+  {
+    "id": "run-editor-script",
+    "title": "Run a custom editor script",
+    "summary": "Use Unity_RunCommand when no dedicated tool matches the task.",
+    "goal": "Execute a focused C# editor automation script inside Unity.",
+    "whenToUse": [
+      "You need to inspect or mutate Unity state in a custom way.",
+      "A dedicated tool is missing for the task."
+    ],
+    "prerequisites": [
+      "Prepare a script that uses the CommandScript golden template."
+    ],
+    "requiredTools": [
+      "Unity_RunCommand"
+    ],
+    "steps": [
+      "Write an internal CommandScript class that implements IRunCommand.",
+      "Register creations, modifications, and deletions through the ExecutionResult object.",
+      "Run the script with a short Title so it is easy to identify in output."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Run a simple editor script",
+        "command": "unity-ai-cli help Unity_RunCommand"
+      }
+    ]
+  },
+  {
+    "id": "capture-editor-ui",
+    "title": "Capture the Unity Editor UI",
+    "summary": "Capture the current editor window layout as an image.",
+    "goal": "Gather visual context from the editor UI when text tools are insufficient.",
+    "whenToUse": [
+      "A visual problem is visible in the editor UI.",
+      "You want a snapshot of the current focused editor windows."
+    ],
+    "prerequisites": [
+      "The target windows are visible in the editor."
+    ],
+    "requiredTools": [
+      "Unity_EditorWindow_CaptureScreenshot"
+    ],
+    "steps": [
+      "Arrange the relevant editor windows before capturing.",
+      "Run the screenshot tool once and inspect the returned image."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Capture the focused editor windows",
+        "command": "unity-ai-cli call Unity_EditorWindow_CaptureScreenshot --json-args '{}'"
+      }
+    ]
+  },
+  {
+    "id": "capture-specific-camera",
+    "title": "Capture a specific camera view",
+    "summary": "Render an image from a chosen camera for scene validation.",
+    "goal": "Inspect what a particular scene camera sees without changing the scene.",
+    "whenToUse": [
+      "You already know the target camera instance ID.",
+      "The scene view does not match the actual gameplay camera."
+    ],
+    "prerequisites": [
+      "Know the GameObject instance ID of the camera to capture."
+    ],
+    "requiredTools": [
+      "Unity_Camera_Capture"
+    ],
+    "steps": [
+      "Identify the camera instance ID.",
+      "Pass the cameraInstanceID argument to the capture tool.",
+      "Use the result image to validate placement or framing."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Capture camera 12345",
+        "command": "unity-ai-cli call Unity_Camera_Capture --json-args '{\"cameraInstanceID\":12345}'"
+      }
+    ]
+  },
+  {
+    "id": "capture-scene-multi-angle",
+    "title": "Capture the Scene View from multiple angles",
+    "summary": "Get a 2x2 multi-angle image for a 3D scene review.",
+    "goal": "Understand 3D scene structure from several viewpoints at once.",
+    "whenToUse": [
+      "A single scene screenshot is not enough.",
+      "You need a broad 3D layout overview."
+    ],
+    "prerequisites": [
+      "The project uses a meaningful 3D Scene View."
+    ],
+    "requiredTools": [
+      "Unity_SceneView_CaptureMultiAngleSceneView"
+    ],
+    "steps": [
+      "Prepare the Scene View at the area you want to inspect.",
+      "Run the multi-angle capture tool.",
+      "Use the four-view result to reason about scene layout."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Capture the current Scene View from four angles",
+        "command": "unity-ai-cli call Unity_SceneView_CaptureMultiAngleSceneView --json-args '{}'"
+      }
+    ]
+  },
+  {
+    "id": "list-generation-models",
+    "title": "List available asset generation models",
+    "summary": "Inspect which generation models are available before choosing one.",
+    "goal": "Get valid model IDs for downstream asset generation commands.",
+    "whenToUse": [
+      "You are about to generate an asset and need a model ID.",
+      "You want to inspect the generation inventory."
+    ],
+    "prerequisites": [
+      "Asset generation is configured for the project."
+    ],
+    "requiredTools": [
+      "Unity_AssetGeneration_GetModels"
+    ],
+    "steps": [
+      "Call the model listing tool.",
+      "Record the model ID you want to use for generation."
+    ],
+    "exampleCommands": [
+      {
+        "title": "List the current model set",
+        "command": "unity-ai-cli call Unity_AssetGeneration_GetModels --json-args '{\"includeAllModels\":false}'"
+      }
+    ]
+  },
+  {
+    "id": "generate-asset",
+    "title": "Generate an asset with the generation backend",
+    "summary": "Choose a model and run the asset generation tool with the right command payload.",
+    "goal": "Create or modify a Unity asset through the generation backend.",
+    "whenToUse": [
+      "You want Unity to generate a new asset from a prompt.",
+      "You want to edit an existing generated asset."
+    ],
+    "prerequisites": [
+      "Choose a valid model ID.",
+      "Know whether the generation command creates a new asset or edits an existing one."
+    ],
+    "requiredTools": [
+      "Unity_AssetGeneration_GetModels",
+      "Unity_AssetGeneration_GenerateAsset"
+    ],
+    "steps": [
+      "List available generation models and choose a model ID.",
+      "Pick the GenerateAsset command that matches the asset type you want.",
+      "Provide savePath for new assets or targetAssetPath for edits.",
+      "Set waitForCompletion when the caller should block for the finished job."
+    ],
+    "exampleCommands": [
+      {
+        "title": "Generate a sprite asset",
+        "command": "unity-ai-cli call Unity_AssetGeneration_GenerateAsset --json-args '{\"command\":\"GenerateSprite\",\"modelId\":\"<model-id>\",\"prompt\":\"A stylized wooden crate icon\",\"savePath\":\"Assets/Generated/crate.png\",\"waitForCompletion\":true}'"
+      }
+    ]
+  }
+]

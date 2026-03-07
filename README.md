@@ -16,6 +16,8 @@ This project does not rely on editing `Library/PackageCache`.
 unity-ai-cli
   |- status
   |- doctor
+  |- help
+  |- recipes
   |- tools
   |- describe
   |- call
@@ -89,6 +91,24 @@ List available Unity tools from the live direct bridge:
 
 ```sh
 ./bin/unity-ai-cli tools --json
+```
+
+List human-oriented help for the currently enabled Unity tools:
+
+```sh
+./bin/unity-ai-cli help --json
+```
+
+Show detailed help for one enabled Unity tool:
+
+```sh
+./bin/unity-ai-cli help Unity_GetConsoleLogs --json
+```
+
+Show recipes that are currently available for the enabled Unity tools:
+
+```sh
+./bin/unity-ai-cli recipes --json
 ```
 
 Describe one Unity tool:

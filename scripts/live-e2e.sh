@@ -49,7 +49,11 @@ run_step "status" "$BIN_PATH" status --project "$PROJECT_PATH" --json
 run_step "doctor" "$BIN_PATH" doctor --project "$PROJECT_PATH" --json
 run_step "wait" "$BIN_PATH" wait --project "$PROJECT_PATH" --for=bridge
 run_step "tools" "$BIN_PATH" tools --project "$PROJECT_PATH" --json
+run_step "help list" "$BIN_PATH" help --project "$PROJECT_PATH" --json
+run_step "help detail" "$BIN_PATH" help "$TOOL_NAME" --project "$PROJECT_PATH" --json
 run_step "describe" "$BIN_PATH" describe "$TOOL_NAME" --project "$PROJECT_PATH" --json
+run_step "recipes list" "$BIN_PATH" recipes --project "$PROJECT_PATH" --json
+run_step "recipe detail" "$BIN_PATH" recipes inspect-console --project "$PROJECT_PATH" --json
 run_step "call" "$BIN_PATH" call "$TOOL_NAME" --project "$PROJECT_PATH" --json-args "$TOOL_ARGS"
 
 request_file="$(mktemp)"

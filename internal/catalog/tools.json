@@ -1,0 +1,240 @@
+[
+  {
+    "tool": "Unity_GetConsoleLogs",
+    "category": "console",
+    "summary": "Read recent Unity Console entries for debugging.",
+    "whenToUse": [
+      "You need recent errors, warnings, or info messages from the Unity Editor.",
+      "You want a quick read-only debugging step before trying a more invasive tool."
+    ],
+    "whenNotToUse": [
+      "You need to change project state instead of inspecting it.",
+      "You need visual scene context rather than text logs."
+    ],
+    "argumentGuidance": [
+      {
+        "name": "maxEntries",
+        "guidance": "Start with a small value such as 5 or 10 to avoid noisy output."
+      },
+      {
+        "name": "includeStackTrace",
+        "guidance": "Use false for quick scans and true when you need the exact call path."
+      },
+      {
+        "name": "logTypes",
+        "guidance": "Limit the result with a comma-separated subset such as error,warning when narrowing a problem."
+      }
+    ],
+    "examples": [
+      {
+        "title": "Read the latest warnings and errors",
+        "command": "unity-ai-cli call Unity_GetConsoleLogs --json-args '{\"maxEntries\":10,\"includeStackTrace\":true,\"logTypes\":\"error,warning\"}'"
+      }
+    ],
+    "sideEffects": [
+      "Read-only."
+    ],
+    "relatedRecipes": [
+      "inspect-console"
+    ]
+  },
+  {
+    "tool": "Unity_RunCommand",
+    "category": "editor-scripting",
+    "summary": "Compile and run a C# editor script inside Unity.",
+    "whenToUse": [
+      "You need to automate an editor task that no focused tool already covers.",
+      "You need to inspect or mutate Unity state with custom C# logic."
+    ],
+    "whenNotToUse": [
+      "A dedicated Unity MCP tool already covers the task more safely.",
+      "You only need logs or screenshots."
+    ],
+    "argumentGuidance": [
+      {
+        "name": "Code",
+        "guidance": "Wrap the script in an internal CommandScript class that implements IRunCommand."
+      },
+      {
+        "name": "Title",
+        "guidance": "Use a short label when you want the execution to be easier to identify in logs."
+      }
+    ],
+    "examples": [
+      {
+        "title": "Create a cube through the golden template",
+        "command": "unity-ai-cli call Unity_RunCommand --json-args '{\"Code\":\"using UnityEngine; using UnityEditor; internal class CommandScript : IRunCommand { public void Execute(ExecutionResult result) { GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube); result.RegisterObjectCreation(cube); result.Log(\\\"Created {0}\\\", cube); } }\",\"Title\":\"Create cube\"}'"
+      }
+    ],
+    "sideEffects": [
+      "Can modify scenes, assets, packages, and project settings.",
+      "Bad scripts can fail compilation or make destructive editor changes."
+    ],
+    "relatedRecipes": [
+      "run-editor-script"
+    ]
+  },
+  {
+    "tool": "Unity_Camera_Capture",
+    "category": "capture",
+    "summary": "Render an image from a specific camera or the current Scene View.",
+    "whenToUse": [
+      "You need to inspect what a particular camera sees.",
+      "You need image context that text tools cannot provide."
+    ],
+    "whenNotToUse": [
+      "A text description of the scene is enough.",
+      "You only need the Unity Editor UI rather than camera output."
+    ],
+    "argumentGuidance": [
+      {
+        "name": "cameraInstanceID",
+        "guidance": "Pass the camera GameObject instance ID when you want a specific camera rather than the current Scene View."
+      }
+    ],
+    "examples": [
+      {
+        "title": "Capture a known camera",
+        "command": "unity-ai-cli call Unity_Camera_Capture --json-args '{\"cameraInstanceID\":12345}'"
+      }
+    ],
+    "sideEffects": [
+      "Computationally expensive."
+    ],
+    "relatedRecipes": [
+      "capture-specific-camera"
+    ]
+  },
+  {
+    "tool": "Unity_EditorWindow_CaptureScreenshot",
+    "category": "capture",
+    "summary": "Capture the current Unity Editor UI as an image.",
+    "whenToUse": [
+      "You need visual context from the editor itself, such as docked windows or scene view layout.",
+      "You want a screenshot without writing a custom editor script."
+    ],
+    "whenNotToUse": [
+      "You only need a specific camera output.",
+      "Logs or tool output already explain the problem."
+    ],
+    "argumentGuidance": [],
+    "examples": [
+      {
+        "title": "Capture the focused editor windows",
+        "command": "unity-ai-cli call Unity_EditorWindow_CaptureScreenshot --json-args '{}'"
+      }
+    ],
+    "sideEffects": [
+      "Computationally expensive."
+    ],
+    "relatedRecipes": [
+      "capture-editor-ui"
+    ]
+  },
+  {
+    "tool": "Unity_SceneView_CaptureMultiAngleSceneView",
+    "category": "capture",
+    "summary": "Capture the current Scene View from four angles in a 2x2 grid.",
+    "whenToUse": [
+      "You need broad 3D spatial context for a scene layout review.",
+      "One screenshot is not enough to understand scene structure."
+    ],
+    "whenNotToUse": [
+      "The project is primarily 2D.",
+      "A single Scene View or camera capture is enough."
+    ],
+    "argumentGuidance": [],
+    "examples": [
+      {
+        "title": "Capture a 3D scene from multiple angles",
+        "command": "unity-ai-cli call Unity_SceneView_CaptureMultiAngleSceneView --json-args '{}'"
+      }
+    ],
+    "sideEffects": [
+      "Computationally expensive."
+    ],
+    "relatedRecipes": [
+      "capture-scene-multi-angle"
+    ]
+  },
+  {
+    "tool": "Unity_AssetGeneration_GetModels",
+    "category": "generation",
+    "summary": "List available generation models for Unity asset generation tools.",
+    "whenToUse": [
+      "You need a valid model ID before generating or editing an asset.",
+      "You want to inspect which generation backends are currently available."
+    ],
+    "whenNotToUse": [
+      "You already know the exact model ID to use.",
+      "You are not using asset generation."
+    ],
+    "argumentGuidance": [
+      {
+        "name": "includeAllModels",
+        "guidance": "Set true when you need the full model inventory rather than the curated default list."
+      }
+    ],
+    "examples": [
+      {
+        "title": "List the currently available generation models",
+        "command": "unity-ai-cli call Unity_AssetGeneration_GetModels --json-args '{\"includeAllModels\":false}'"
+      }
+    ],
+    "sideEffects": [
+      "Read-only."
+    ],
+    "relatedRecipes": [
+      "list-generation-models",
+      "generate-asset"
+    ]
+  },
+  {
+    "tool": "Unity_AssetGeneration_GenerateAsset",
+    "category": "generation",
+    "summary": "Generate or edit a Unity asset through the asset generation backend.",
+    "whenToUse": [
+      "You want to generate a new sprite, image, cubemap, material, sound, or mesh.",
+      "You want to edit an existing generated asset with a prompt."
+    ],
+    "whenNotToUse": [
+      "You are only exploring which models are available.",
+      "The task can be completed with a normal editor script or import workflow."
+    ],
+    "argumentGuidance": [
+      {
+        "name": "command",
+        "guidance": "This selects the generation action and is always required."
+      },
+      {
+        "name": "modelId",
+        "guidance": "Get a valid model ID from Unity_AssetGeneration_GetModels before calling this tool."
+      },
+      {
+        "name": "savePath",
+        "guidance": "Use a project-relative asset path when creating a new generated asset."
+      },
+      {
+        "name": "targetAssetPath",
+        "guidance": "Provide the existing asset path when the command edits or augments an asset."
+      },
+      {
+        "name": "waitForCompletion",
+        "guidance": "Set true when the caller should wait for a finished generation job."
+      }
+    ],
+    "examples": [
+      {
+        "title": "Generate a sprite asset",
+        "command": "unity-ai-cli call Unity_AssetGeneration_GenerateAsset --json-args '{\"command\":\"GenerateSprite\",\"modelId\":\"<model-id>\",\"prompt\":\"A stylized wooden crate icon\",\"savePath\":\"Assets/Generated/crate.png\",\"waitForCompletion\":true}'"
+      }
+    ],
+    "sideEffects": [
+      "Creates or modifies project assets.",
+      "Generation can be expensive and may depend on external generation services."
+    ],
+    "relatedRecipes": [
+      "generate-asset"
+    ]
+  }
+]

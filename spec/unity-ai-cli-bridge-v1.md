@@ -20,6 +20,8 @@ Required commands:
 
 - `unity-ai-cli status`
 - `unity-ai-cli doctor`
+- `unity-ai-cli help [tool]`
+- `unity-ai-cli recipes [recipe-id]`
 - `unity-ai-cli tools`
 - `unity-ai-cli describe <tool>`
 - `unity-ai-cli call <tool> --json-args '<json>'`
@@ -93,7 +95,32 @@ Requirements:
 
 - support `--json`
 - print the exact Unity tool names
+- support `--category`
 - do not rely on the companion tool snapshot for primary tool execution
+- plain text output should include category and short summary when local catalog metadata exists
+
+### `help`
+
+Provide human-oriented help for the currently enabled Unity tools.
+
+Requirements:
+
+- `help` without arguments lists only the tools returned by the live Unity direct bridge
+- `help <tool>` succeeds only when the tool is currently enabled and exposed
+- support `--json`
+- merge live schema data with repo-local help metadata when available
+- fall back to live description and schema when no local metadata exists
+
+### `recipes`
+
+Provide task-oriented recipes for the currently enabled Unity tools.
+
+Requirements:
+
+- `recipes` lists only recipes whose required tools are all currently enabled
+- `recipes <recipe-id>` fails when the recipe is unknown or currently unavailable
+- support `--json`
+- use repo-local recipe metadata and live tool availability checks
 
 ### `describe`
 
@@ -105,6 +132,7 @@ Resolve a single tool from the live tool list and print:
 - input schema
 - output schema
 - annotations
+- a plain-text hint pointing to `unity-ai-cli help <tool>`
 
 ### `call`
 
@@ -203,11 +231,12 @@ V1 does not require continuous polling.
 
 ### Go
 
+- catalog metadata loading and merge tests
 - discovery resolution
 - diagnostics snapshot parsing
 - direct bridge protocol tests
 - MCP server tests
-- live CLI E2E covering `status`, `doctor`, `wait`, `tools`, `describe`, `call`, and `mcp serve`
+- live CLI E2E covering `status`, `doctor`, `wait`, `help`, `recipes`, `tools`, `describe`, `call`, and `mcp serve`
 
 ### Unity
 
@@ -221,6 +250,8 @@ V1 does not require continuous polling.
 - the local companion package is installed through `Packages/manifest.json`
 - `status` reports discovery and companion diagnostics when available
 - `doctor` provides actionable output for approval and readiness issues
+- `help` lists only currently enabled tools and explains one tool in human-oriented terms
+- `recipes` lists only currently available workflows based on the enabled tool set
 - `tools`, `describe`, and `call` execute through the live Unity direct bridge
 - `wait` supports heartbeat-based and snapshot-based readiness checks
 - `mcp serve` exposes Unity tools through MCP stdio
