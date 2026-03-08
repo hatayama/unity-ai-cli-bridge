@@ -204,31 +204,18 @@ func TestLiveUnityAllToolsCallableViaMCP(t *testing.T) {
 	listPayload := decodeJSONObject(t, runCLICommand(t, binaryPath, nil, "tools", "--json"))
 	cliToolNames := toolNamesFromArray(t, decodeArrayField(t, listPayload, "tools"))
 	t.Logf("live catalog exposes %d tools", len(cliToolNames))
-
-	unknownLiveTools := make([]string, 0)
-	for _, toolName := range cliToolNames {
-		if _, ok := smokeCases[toolName]; !ok {
-			unknownLiveTools = append(unknownLiveTools, toolName)
-		}
-	}
+	assertToolNameSetsEqual(t, knownLiveToolNames, cliToolNames)
 
 	mcpToolsResponse := listToolsViaMCP(t, binaryPath)
 	assertNoRPCError(t, mcpToolsResponse)
 	mcpToolNames := toolNamesFromArray(t, decodeArrayField(t, decodeObjectField(t, mcpToolsResponse, "result"), "tools"))
+	assertToolNameSetsEqual(t, knownLiveToolNames, mcpToolNames)
 	assertToolNameSetsEqual(t, cliToolNames, mcpToolNames)
-
-	if len(unknownLiveTools) > 0 {
-		sort.Strings(unknownLiveTools)
-		t.Logf("skipped unknown live tools: %s", strings.Join(unknownLiveTools, ", "))
-	}
 
 	for _, toolName := range cliToolNames {
 		smokeCase, ok := smokeCases[toolName]
 		if !ok {
-			t.Run(toolName, func(t *testing.T) {
-				t.Skip("no smoke case registered for this live tool yet")
-			})
-			continue
+			t.Fatalf("missing smoke case for live tool %s", toolName)
 		}
 
 		t.Run(toolName, func(t *testing.T) {
@@ -549,9 +536,14 @@ func assertLiveToolSmokeResponse(
 		t.Fatalf("expected non-empty content text for %s, got %#v", toolName, firstContent)
 	}
 
+	structuredContent := decodeObjectField(t, resultPayload, "structuredContent")
 	structuredFailure := resultIndicatesStructuredFailure(t, resultPayload)
 	switch smokeCase.Expectation {
 	case smokeExpectSuccess:
+		success, hasSuccess := optionalBoolField(t, structuredContent, "success")
+		if !hasSuccess || !success {
+			t.Fatalf("expected structured success response for %s, got %#v", toolName, resultPayload)
+		}
 		if structuredFailure {
 			t.Fatalf("expected success response for %s, got %#v", toolName, resultPayload)
 		}
@@ -560,7 +552,9 @@ func assertLiveToolSmokeResponse(
 			t.Fatalf("expected structured error response for %s, got %#v", toolName, resultPayload)
 		}
 	case smokeExpectAnyStructured:
-		return
+		if len(structuredContent) == 0 {
+			t.Fatalf("expected structured payload for %s, got %#v", toolName, resultPayload)
+		}
 	default:
 		t.Fatalf("unexpected smoke expectation %q for %s", smokeCase.Expectation, toolName)
 	}
