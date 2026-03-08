@@ -16,7 +16,7 @@ import (
 func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 	toolName, parseArgs, err := peelLeadingToolArg(args)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		writeln(stderr, err.Error())
 		return 1
 	}
 
@@ -31,7 +31,7 @@ func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	if toolName == "" && len(flags.Args()) > 1 {
-		fmt.Fprintln(stderr, "help accepts at most one tool name")
+		writeln(stderr, "help accepts at most one tool name")
 		return 1
 	}
 
@@ -41,14 +41,14 @@ func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
+		writef(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
 	defer cleanup()
 
 	toolCatalog, err := catalog.Default()
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to load tool catalog: %v\n", err)
+		writef(stderr, "failed to load tool catalog: %v\n", err)
 		return 1
 	}
 
@@ -68,11 +68,11 @@ func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 	help, err := toolCatalog.BuildToolHelp(toolList.Tools, toolName)
 	if err != nil {
 		if errors.Is(err, catalog.ErrToolNotEnabled) {
-			fmt.Fprintf(stderr, "tool not currently enabled: %s\n", toolName)
+			writef(stderr, "tool not currently enabled: %s\n", toolName)
 			return 1
 		}
 
-		fmt.Fprintf(stderr, "failed to build help for tool %s: %v\n", toolName, err)
+		writef(stderr, "failed to build help for tool %s: %v\n", toolName, err)
 		return 1
 	}
 
@@ -87,7 +87,7 @@ func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 func runRecipes(args []string, stdout io.Writer, stderr io.Writer) int {
 	recipeID, parseArgs, err := peelLeadingToolArg(args)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		writeln(stderr, err.Error())
 		return 1
 	}
 
@@ -102,7 +102,7 @@ func runRecipes(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	if recipeID == "" && len(flags.Args()) > 1 {
-		fmt.Fprintln(stderr, "recipes accepts at most one recipe id")
+		writeln(stderr, "recipes accepts at most one recipe id")
 		return 1
 	}
 
@@ -112,14 +112,14 @@ func runRecipes(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
+		writef(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
 	defer cleanup()
 
 	toolCatalog, err := catalog.Default()
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to load recipe catalog: %v\n", err)
+		writef(stderr, "failed to load recipe catalog: %v\n", err)
 		return 1
 	}
 
@@ -139,17 +139,17 @@ func runRecipes(args []string, stdout io.Writer, stderr io.Writer) int {
 	recipeHelp, err := toolCatalog.BuildRecipeHelp(toolList.Tools, recipeID)
 	if err != nil {
 		if errors.Is(err, catalog.ErrRecipeNotFound) {
-			fmt.Fprintf(stderr, "recipe not found: %s\n", recipeID)
+			writef(stderr, "recipe not found: %s\n", recipeID)
 			return 1
 		}
 
 		recipeAvailabilityError := catalog.RecipeAvailabilityError{}
 		if errors.As(err, &recipeAvailabilityError) {
-			fmt.Fprintf(stderr, "%s\n", recipeAvailabilityError.Error())
+			writef(stderr, "%s\n", recipeAvailabilityError.Error())
 			return 1
 		}
 
-		fmt.Fprintf(stderr, "failed to build recipe %s: %v\n", recipeID, err)
+		writef(stderr, "failed to build recipe %s: %v\n", recipeID, err)
 		return 1
 	}
 

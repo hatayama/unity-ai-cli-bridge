@@ -45,7 +45,7 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 	case "serve-mcp":
 		return runMcp(append([]string{"serve"}, args[1:]...), stdin, stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
+		writef(stderr, "unknown command: %s\n", args[0])
 		printUsage(stderr)
 		return 1
 	}
@@ -64,7 +64,7 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	bridgeContext, err := resolveBridgeContext(options)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to resolve Unity bridge: %v\n", err)
+		writef(stderr, "failed to resolve Unity bridge: %v\n", err)
 		return 1
 	}
 
@@ -88,21 +88,21 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 		return printJSON(stdout, payload, true)
 	}
 
-	fmt.Fprintf(stdout, "Project Root: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectRoot))
-	fmt.Fprintf(stdout, "Assets Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectAssets))
-	fmt.Fprintf(stdout, "Connection File: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionFile))
-	fmt.Fprintf(stdout, "Connection Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ConnectionPath))
-	fmt.Fprintf(stdout, "Protocol Version: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ProtocolVersion))
+	writef(stdout, "Project Root: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectRoot))
+	writef(stdout, "Assets Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ProjectAssets))
+	writef(stdout, "Connection File: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionFile))
+	writef(stdout, "Connection Path: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ConnectionPath))
+	writef(stdout, "Protocol Version: %s\n", valueOrUnknown(bridgeContext.Resolved.ConnectionInfo.ProtocolVersion))
 	if bridgeContext.Resolved.StatusInfo != nil {
-		fmt.Fprintf(stdout, "Heartbeat Status: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.Status))
-		fmt.Fprintf(stdout, "Last Heartbeat: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.LastHeartbeat))
+		writef(stdout, "Heartbeat Status: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.Status))
+		writef(stdout, "Last Heartbeat: %s\n", valueOrUnknown(bridgeContext.Resolved.StatusInfo.LastHeartbeat))
 	}
-	fmt.Fprintf(stdout, "Diagnostics File: %s\n", valueOrUnknown(bridgeContext.SnapshotPaths.DiagnosticsFile))
+	writef(stdout, "Diagnostics File: %s\n", valueOrUnknown(bridgeContext.SnapshotPaths.DiagnosticsFile))
 	if bridgeContext.Diagnostics != nil {
-		fmt.Fprintf(stdout, "Bridge Running: %t\n", bridgeContext.Diagnostics.BridgeRunning)
-		fmt.Fprintf(stdout, "Active Clients: %d\n", bridgeContext.Diagnostics.ActiveClientCount)
-		fmt.Fprintf(stdout, "Tool Count: %d\n", bridgeContext.Diagnostics.ToolCount)
-		fmt.Fprintf(stdout, "Diagnostics Updated: %s\n", valueOrUnknown(bridgeContext.Diagnostics.GeneratedAtUTC))
+		writef(stdout, "Bridge Running: %t\n", bridgeContext.Diagnostics.BridgeRunning)
+		writef(stdout, "Active Clients: %d\n", bridgeContext.Diagnostics.ActiveClientCount)
+		writef(stdout, "Tool Count: %d\n", bridgeContext.Diagnostics.ToolCount)
+		writef(stdout, "Diagnostics Updated: %s\n", valueOrUnknown(bridgeContext.Diagnostics.GeneratedAtUTC))
 	}
 
 	return 0
@@ -125,19 +125,19 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
 		return printJSON(stdout, report, true)
 	}
 
-	fmt.Fprintf(stdout, "Project Root: %s\n", valueOrUnknown(report.ProjectRoot))
-	fmt.Fprintf(stdout, "Connection File: %s\n", valueOrUnknown(report.ConnectionFile))
-	fmt.Fprintf(stdout, "Status File: %s\n", valueOrUnknown(report.StatusFile))
-	fmt.Fprintf(stdout, "Diagnostics File: %s\n", valueOrUnknown(report.DiagnosticsFile))
-	fmt.Fprintf(stdout, "Tools File: %s\n", valueOrUnknown(report.ToolsFile))
-	fmt.Fprintln(stdout, "Checks:")
+	writef(stdout, "Project Root: %s\n", valueOrUnknown(report.ProjectRoot))
+	writef(stdout, "Connection File: %s\n", valueOrUnknown(report.ConnectionFile))
+	writef(stdout, "Status File: %s\n", valueOrUnknown(report.StatusFile))
+	writef(stdout, "Diagnostics File: %s\n", valueOrUnknown(report.DiagnosticsFile))
+	writef(stdout, "Tools File: %s\n", valueOrUnknown(report.ToolsFile))
+	writeln(stdout, "Checks:")
 	for _, check := range report.Checks {
-		fmt.Fprintf(stdout, "- [%s] %s: %s\n", strings.ToUpper(check.Status), check.Name, check.Message)
+		writef(stdout, "- [%s] %s: %s\n", strings.ToUpper(check.Status), check.Name, check.Message)
 	}
 	if len(report.Advice) > 0 {
-		fmt.Fprintln(stdout, "Advice:")
+		writeln(stdout, "Advice:")
 		for _, advice := range report.Advice {
-			fmt.Fprintf(stdout, "- %s\n", advice)
+			writef(stdout, "- %s\n", advice)
 		}
 	}
 
@@ -162,7 +162,7 @@ func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
+		writef(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
 	defer cleanup()
@@ -174,7 +174,7 @@ func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
 
 		summaries, err := buildToolSummaries(toolList, *category)
 		if err != nil {
-			fmt.Fprintf(stderr, "failed to build tool summaries: %v\n", err)
+			writef(stderr, "failed to build tool summaries: %v\n", err)
 			return 1
 		}
 
@@ -199,7 +199,7 @@ func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	summaries, err := buildToolSummaries(toolList, *category)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to build tool summaries: %v\n", err)
+		writef(stderr, "failed to build tool summaries: %v\n", err)
 		return 1
 	}
 
@@ -210,7 +210,7 @@ func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
 func runDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
 	toolName, parseArgs, err := peelLeadingToolArg(args)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		writeln(stderr, err.Error())
 		return 1
 	}
 
@@ -226,18 +226,18 @@ func runDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	if toolName == "" {
 		if len(flags.Args()) != 1 {
-			fmt.Fprintln(stderr, "describe requires a single tool name")
+			writeln(stderr, "describe requires a single tool name")
 			return 1
 		}
 		toolName = flags.Args()[0]
 	} else if len(flags.Args()) > 0 {
-		fmt.Fprintln(stderr, "describe accepts only one tool name")
+		writeln(stderr, "describe accepts only one tool name")
 		return 1
 	}
 
 	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
+		writef(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
 	defer cleanup()
@@ -251,31 +251,31 @@ func runDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
 			return printJSON(stdout, tool, true)
 		}
 
-		fmt.Fprintf(stdout, "Name: %s\n", tool.Name)
-		fmt.Fprintf(stdout, "Title: %s\n", valueOrUnknown(tool.Title))
-		fmt.Fprintf(stdout, "Description: %s\n", valueOrUnknown(tool.Description))
-		fmt.Fprintln(stdout, "Input Schema:")
+		writef(stdout, "Name: %s\n", tool.Name)
+		writef(stdout, "Title: %s\n", valueOrUnknown(tool.Title))
+		writef(stdout, "Description: %s\n", valueOrUnknown(tool.Description))
+		writeln(stdout, "Input Schema:")
 		printRawJSON(stdout, tool.InputSchema)
 		if len(tool.OutputSchema) > 0 {
-			fmt.Fprintln(stdout, "Output Schema:")
+			writeln(stdout, "Output Schema:")
 			printRawJSON(stdout, tool.OutputSchema)
 		}
 		if len(tool.Annotations) > 0 {
-			fmt.Fprintln(stdout, "Annotations:")
+			writeln(stdout, "Annotations:")
 			printRawJSON(stdout, tool.Annotations)
 		}
-		fmt.Fprintf(stdout, "See: unity-ai-cli help %s\n", tool.Name)
+		writef(stdout, "See: unity-ai-cli help %s\n", tool.Name)
 		return 0
 	}
 
-	fmt.Fprintf(stderr, "tool not found: %s\n", toolName)
+	writef(stderr, "tool not found: %s\n", toolName)
 	return 1
 }
 
 func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
 	toolName, parseArgs, err := peelLeadingToolArg(args)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		writeln(stderr, err.Error())
 		return 1
 	}
 
@@ -291,18 +291,18 @@ func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	if toolName == "" {
 		if len(flags.Args()) != 1 {
-			fmt.Fprintln(stderr, "call requires a single tool name")
+			writeln(stderr, "call requires a single tool name")
 			return 1
 		}
 		toolName = flags.Args()[0]
 	} else if len(flags.Args()) > 0 {
-		fmt.Fprintln(stderr, "call accepts only one tool name")
+		writeln(stderr, "call accepts only one tool name")
 		return 1
 	}
 
 	toolArguments := make(map[string]any)
 	if err := json.Unmarshal([]byte(*jsonArgs), &toolArguments); err != nil {
-		fmt.Fprintf(stderr, "failed to parse --json-args: %v\n", err)
+		writef(stderr, "failed to parse --json-args: %v\n", err)
 		return 1
 	}
 
@@ -331,7 +331,7 @@ func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
 		},
 	)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
+		writef(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
 	defer connection.Cleanup()
@@ -347,12 +347,12 @@ func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
 		},
 	)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to call Unity tool %s: %v\n", toolName, err)
+		writef(stderr, "failed to call Unity tool %s: %v\n", toolName, err)
 		return 1
 	}
 
 	if len(bytes.TrimSpace(result)) == 0 {
-		_, _ = fmt.Fprintln(stdout, "{}")
+		writeln(stdout, "{}")
 		return 0
 	}
 
@@ -374,17 +374,17 @@ func runWait(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	deadline := time.Now().Add(*timeout)
-	lastMessage := "not ready yet"
+	lastMessage := ""
 	for {
 		ready, message := evaluateWaitTarget(*options, *waitFor, *live)
 		if ready {
-			fmt.Fprintf(stdout, "%s\n", message)
+			writef(stdout, "%s\n", message)
 			return 0
 		}
 
 		lastMessage = message
 		if time.Now().After(deadline) {
-			fmt.Fprintf(stderr, "wait timed out: %s\n", lastMessage)
+			writef(stderr, "wait timed out: %s\n", lastMessage)
 			return 1
 		}
 
@@ -394,7 +394,7 @@ func runWait(args []string, stdout io.Writer, stderr io.Writer) int {
 
 func runMcp(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "serve" {
-		fmt.Fprintln(stderr, "mcp supports only the serve subcommand")
+		writeln(stderr, "mcp supports only the serve subcommand")
 		return 1
 	}
 
@@ -416,7 +416,7 @@ func runMcp(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) 
 	})
 
 	if err := server.Serve(context.Background(), stdin, stdout); err != nil && !errors.Is(err, io.EOF) {
-		fmt.Fprintf(stderr, "MCP server failed: %v\n", err)
+		writef(stderr, "MCP server failed: %v\n", err)
 		return 1
 	}
 

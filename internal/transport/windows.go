@@ -3,12 +3,12 @@
 package transport
 
 import (
-    "io"
-    "os"
+	"io"
+	"os"
 )
 
 type defaultDialer struct{}
 
 func (defaultDialer) Dial(path string) (io.ReadWriteCloser, error) {
-    return os.OpenFile(path, os.O_RDWR, 0)
+	return os.OpenFile(path, os.O_RDWR, 0)
 }

@@ -117,7 +117,7 @@ func startFakeBridge(t *testing.T, handler func(connection net.Conn)) (fakeDiale
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		defer clientConnection.Close()
+		defer func() { _ = clientConnection.Close() }()
 		handler(clientConnection)
 	}()
 

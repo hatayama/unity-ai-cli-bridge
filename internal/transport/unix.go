@@ -3,12 +3,12 @@
 package transport
 
 import (
-    "io"
-    "net"
+	"io"
+	"net"
 )
 
 type defaultDialer struct{}
 
 func (defaultDialer) Dial(path string) (io.ReadWriteCloser, error) {
-    return net.Dial("unix", path)
+	return net.Dial("unix", path)
 }
