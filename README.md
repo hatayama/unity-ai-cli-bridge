@@ -191,6 +191,31 @@ Expected results:
 
 ## Development
 
+Install the local Go quality tools:
+
+```sh
+brew install golangci-lint
+go install golang.org/x/vuln/cmd/govulncheck@$(cat .govulncheck-version)
+```
+
+Verify local tool availability:
+
+```sh
+sh scripts/go-guardrails.sh doctor
+```
+
+Format Go files:
+
+```sh
+sh scripts/go-guardrails.sh fmt
+```
+
+Run the full local Go guardrail suite:
+
+```sh
+sh scripts/go-guardrails.sh check
+```
+
 Run Go tests:
 
 ```sh

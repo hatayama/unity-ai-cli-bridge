@@ -1,0 +1,57 @@
+name: go-guardrails
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-vet-format:
+    name: test, vet, and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check gofmt formatting
+        run: sh scripts/go-guardrails.sh fmt-check
+      - name: Run Go tests
+        run: sh scripts/go-guardrails.sh test
+      - name: Run go vet
+        run: sh scripts/go-guardrails.sh vet
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version-file: .golangci-lint-version
+          verify: true
+          args: ./...
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Read govulncheck version
+        id: govulncheck-version
+        run: echo "value=$(cat .govulncheck-version)" >> "$GITHUB_OUTPUT"
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ steps.govulncheck-version.outputs.value }}
+      - name: Run govulncheck
+        run: PATH="$(go env GOPATH)/bin:$PATH" sh scripts/go-guardrails.sh vuln
