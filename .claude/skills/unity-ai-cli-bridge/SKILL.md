@@ -1,3 +1,8 @@
+---
+name: unity-ai-cli-bridge
+description: "Interact with a local Unity Editor through `unity-ai-cli`. Use when you need to: (1) Discover available Unity tools dynamically, (2) Execute `unity-ai-cli` tools with JSON arguments, (3) Expose the Unity Editor as an MCP server for AI clients."
+---
+
 # Unity AI CLI Bridge
 
 Use this skill when you need to interact with the local Unity Editor through `unity-ai-cli`.
