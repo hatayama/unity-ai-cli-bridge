@@ -536,14 +536,19 @@ func assertLiveToolSmokeResponse(
 		t.Fatalf("expected non-empty content text for %s, got %#v", toolName, firstContent)
 	}
 
-	structuredContent := decodeObjectField(t, resultPayload, "structuredContent")
 	structuredFailure := resultIndicatesStructuredFailure(t, resultPayload)
 	switch smokeCase.Expectation {
 	case smokeExpectSuccess:
-		success, hasSuccess := optionalBoolField(t, structuredContent, "success")
-		if !hasSuccess || !success {
-			t.Fatalf("expected structured success response for %s, got %#v", toolName, resultPayload)
+		structuredContent, ok := optionalObjectField(t, resultPayload, "structuredContent")
+		if !ok {
+			t.Fatalf("expected structured success payload for %s, got %#v", toolName, resultPayload)
 		}
+
+		success, hasSuccess := optionalBoolField(t, structuredContent, "success")
+		if hasSuccess && !success {
+			t.Fatalf("expected successful structured payload for %s, got %#v", toolName, resultPayload)
+		}
+
 		if structuredFailure {
 			t.Fatalf("expected success response for %s, got %#v", toolName, resultPayload)
 		}
@@ -552,7 +557,8 @@ func assertLiveToolSmokeResponse(
 			t.Fatalf("expected structured error response for %s, got %#v", toolName, resultPayload)
 		}
 	case smokeExpectAnyStructured:
-		if len(structuredContent) == 0 {
+		structuredContent, ok := optionalObjectField(t, resultPayload, "structuredContent")
+		if !ok || len(structuredContent) == 0 {
 			t.Fatalf("expected structured payload for %s, got %#v", toolName, resultPayload)
 		}
 	default:
@@ -600,6 +606,22 @@ func optionalBoolField(t *testing.T, payload map[string]any, fieldName string) (
 	}
 
 	return boolValue, true
+}
+
+func optionalObjectField(t *testing.T, payload map[string]any, fieldName string) (map[string]any, bool) {
+	t.Helper()
+
+	fieldValue, ok := payload[fieldName]
+	if !ok || fieldValue == nil {
+		return nil, false
+	}
+
+	objectValue, ok := fieldValue.(map[string]any)
+	if !ok {
+		t.Fatalf("expected %s to be an object, got %#v", fieldName, fieldValue)
+	}
+
+	return objectValue, true
 }
 
 func writeInitializeRequest(t *testing.T, buffer *bytes.Buffer, requestID int) {
