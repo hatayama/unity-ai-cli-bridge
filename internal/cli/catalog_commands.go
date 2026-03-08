@@ -39,7 +39,7 @@ func runHelp(args []string, stdout io.Writer, stderr io.Writer) int {
 		toolName = flags.Args()[0]
 	}
 
-	toolList, cleanup, err := loadToolList(*options, 20*time.Second)
+	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
@@ -110,7 +110,7 @@ func runRecipes(args []string, stdout io.Writer, stderr io.Writer) int {
 		recipeID = flags.Args()[0]
 	}
 
-	toolList, cleanup, err := loadToolList(*options, 20*time.Second)
+	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"flag"
+	"io"
 	"os"
 	"time"
 
@@ -118,4 +119,36 @@ func loadToolList(options connectionOptions, timeout time.Duration) (unitybridge
 	}
 
 	return toolList, cleanup, nil
+}
+
+type loadedToolList struct {
+	ToolList unitybridge.ToolListResult
+	Cleanup  func()
+}
+
+func loadToolListWithSpinner(
+	stderr io.Writer,
+	options connectionOptions,
+	timeout time.Duration,
+) (unitybridge.ToolListResult, func(), error) {
+	result, err := runWithSpinner(
+		stderr,
+		"Loading enabled Unity tools from Unity",
+		func() (loadedToolList, error) {
+			toolList, cleanup, loadErr := loadToolList(options, timeout)
+			if loadErr != nil {
+				return loadedToolList{}, loadErr
+			}
+
+			return loadedToolList{
+				ToolList: toolList,
+				Cleanup:  cleanup,
+			}, nil
+		},
+	)
+	if err != nil {
+		return unitybridge.ToolListResult{}, nil, err
+	}
+
+	return result.ToolList, result.Cleanup, nil
 }

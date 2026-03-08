@@ -160,7 +160,7 @@ func runTools(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 
-	toolList, cleanup, err := loadToolList(*options, 20*time.Second)
+	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
@@ -235,7 +235,7 @@ func runDescribe(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 
-	toolList, cleanup, err := loadToolList(*options, 20*time.Second)
+	toolList, cleanup, err := loadToolListWithSpinner(stderr, *options, 20*time.Second)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
@@ -306,17 +306,46 @@ func runCall(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 
-	bridgeClient, cleanup, err := openBridgeClient(*options, 30*time.Second)
+	connection, err := runWithSpinner(
+		stderr,
+		"Connecting to Unity bridge",
+		func() (struct {
+			Client  *unitybridge.Client
+			Cleanup func()
+		}, error) {
+			bridgeClient, cleanup, openErr := openBridgeClient(*options, 30*time.Second)
+			if openErr != nil {
+				return struct {
+					Client  *unitybridge.Client
+					Cleanup func()
+				}{}, openErr
+			}
+
+			return struct {
+				Client  *unitybridge.Client
+				Cleanup func()
+			}{
+				Client:  bridgeClient,
+				Cleanup: cleanup,
+			}, nil
+		},
+	)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to connect to Unity bridge: %v\n", err)
 		return 1
 	}
-	defer cleanup()
+	defer connection.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := bridgeClient.CallTool(ctx, toolName, toolArguments)
+	result, err := runWithSpinner(
+		stderr,
+		fmt.Sprintf("Calling Unity tool %s", toolName),
+		func() (json.RawMessage, error) {
+			return connection.Client.CallTool(ctx, toolName, toolArguments)
+		},
+	)
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to call Unity tool %s: %v\n", toolName, err)
 		return 1
