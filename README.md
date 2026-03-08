@@ -204,6 +204,12 @@ Verify local tool availability:
 sh scripts/go-guardrails.sh doctor
 ```
 
+Enable the shared local pre-commit hook:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 Format Go files:
 
 ```sh
@@ -215,6 +221,10 @@ Run the full local Go guardrail suite:
 ```sh
 sh scripts/go-guardrails.sh check
 ```
+
+`git commit` runs `fmt-check`, `go test`, `go vet`, and `golangci-lint`
+automatically when the staged changes include Go-related files. It skips
+commits that do not touch the Go toolchain or Go source files.
 
 Run Go tests:
 

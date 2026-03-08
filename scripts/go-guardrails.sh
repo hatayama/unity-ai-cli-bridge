@@ -11,6 +11,10 @@ project_root() {
     CDPATH= cd -- "$(dirname -- "$0")/.." && pwd
 }
 
+staged_files() {
+    git diff --cached --name-only --diff-filter=ACMR
+}
+
 require_command() {
     command_name="$1"
     if command -v "$command_name" >/dev/null 2>&1; then
@@ -31,6 +35,15 @@ golangci_lint_cache_dir() {
 
 go_files() {
     git ls-files '*.go'
+}
+
+has_relevant_staged_changes() {
+    staged="$(staged_files)"
+    if [ -z "$staged" ]; then
+        return 1
+    fi
+
+    printf '%s\n' "$staged" | grep -Eq '(^|/)[^/]+\.go$|^go\.mod$|^go\.sum$|^\.golangci\.yml$|^\.golangci-lint-version$|^\.govulncheck-version$|^scripts/go-guardrails\.sh$|^\.github/workflows/go-guardrails\.yml$'
 }
 
 run_with_go_cache() {
@@ -128,10 +141,27 @@ run_all_checks() {
     run_vulncheck
 }
 
+run_pre_commit_checks() {
+    if ! has_relevant_staged_changes; then
+        printf '%s\n' "Skipping Go guardrails: no staged Go changes."
+        return 0
+    fi
+
+    check_go_format
+    run_tests
+    run_vet
+    run_lint
+}
+
 main() {
     command_name="${1:-check}"
 
     cd "$(project_root)"
+
+    if command -v go >/dev/null 2>&1; then
+        PATH="$(go env GOPATH)/bin:$PATH"
+        export PATH
+    fi
 
     case "$command_name" in
         fmt)
@@ -158,8 +188,11 @@ main() {
         check)
             run_all_checks
             ;;
+        pre-commit)
+            run_pre_commit_checks
+            ;;
         *)
-            printf '%s\n' "Usage: sh scripts/go-guardrails.sh [fmt|fmt-check|test|vet|lint|vuln|doctor|check]" >&2
+            printf '%s\n' "Usage: sh scripts/go-guardrails.sh [fmt|fmt-check|test|vet|lint|vuln|doctor|check|pre-commit]" >&2
             return 1
             ;;
     esac

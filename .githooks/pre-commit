@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -eu
+
+project_root="$(git rev-parse --show-toplevel)"
+cd "$project_root"
+
+printf '%s\n' "Running Go pre-commit guardrails..."
+sh scripts/go-guardrails.sh pre-commit
